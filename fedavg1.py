@@ -187,6 +187,6 @@ if __name__ == "__main__":
                 param.grad.data.add_(grad.data * weight)
         global_optimizer.step()
 
-        if e % 3 == 0:
+        if e % 20 == 0:
             loss, acc = trainer.evaluate(deepcopy(global_model), test_clients)
             logging.info("{0:.5f}, {1:.5f}".format(loss, acc))
