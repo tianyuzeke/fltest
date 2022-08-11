@@ -1,5 +1,4 @@
 import argparse
-from pickletools import optimize
 import torch
 from torch import nn
 from torch.optim import Adam, SGD
@@ -7,9 +6,7 @@ from torch.utils.data import DataLoader, random_split
 import os, random
 from copy import deepcopy
 from pickle_dataset import PickleDataset
-from tqdm import trange
-
-from fedlab.utils.logger import Logger
+import tqdm, logging
 
 from utils import get_args, AverageMeter
 
@@ -76,7 +73,8 @@ class LocalTrainer:
 
     def _train(self, client_id, model, dataloader, optimizer, epochs):
         model.train()
-        for _ in trange(epochs, desc="client [{}]".format(client_id)):
+        # for _ in trange(epochs, desc="client [{}]".format(client_id)):
+        for _ in range(epochs):
             for x, y in dataloader:
                 if self.cuda != -1:
                     x, y = x.cuda(self.cuda), y.cuda(self.cuda)
@@ -114,10 +112,23 @@ class LocalTrainer:
 
         return loss.average(), acc.average()
 
+def init_logging():
+    logging.basicConfig(level=logging.INFO,
+                        format='%(asctime)s  %(message)s',
+                        datefmt='[%m-%d %H:%M:%S]',
+                        filename='./log.txt',
+                        filemode='w')
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s  %(message)s', datefmt='[%m-%d %H:%M:%S]')
+    console.setFormatter(formatter)
+    logging.getLogger().addHandler(console)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     args = get_args(parser)
+
+    init_logging()
 
     # logger = Logger(log_name="Personalized FedAvg")
     if args.cuda == -1:
@@ -158,7 +169,7 @@ if __name__ == "__main__":
         all_client_weights = []
         all_client_gradients = []
 
-        for client_id in selected_clients:
+        for client_id in tqdm.tqdm(selected_clients, desc="global round [{}]".format(e)):
             weight, grads = trainer.train(deepcopy(global_model), client_id)
             all_client_weights.append(weight)
             all_client_gradients.append(grads)
@@ -176,6 +187,6 @@ if __name__ == "__main__":
                 param.grad.data.add_(grad.data * weight)
         global_optimizer.step()
 
-        if e % 20 == 0:
+        if e % 3 == 0:
             loss, acc = trainer.evaluate(deepcopy(global_model), test_clients)
-            print(loss, acc)
+            logging.info("{0:.5f}, {1:.5f}".format(loss, acc))
