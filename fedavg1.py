@@ -1,47 +1,13 @@
 import argparse
 import torch
-from torch import nn
-from torch.optim import Adam, SGD
 from torch.utils.data import DataLoader, random_split
 import os, random
 from copy import deepcopy
 from pickle_dataset import PickleDataset
 import tqdm, logging
 
-from utils import get_args, AverageMeter
-
-def get_optimizer(model, optimizer, args=None):
-    if args is None:
-        args = {}
-    if optimizer == "sgd":
-        return SGD(model.parameters(), lr=args.get('lr', 2e-2))
-    elif optimizer == "momentum_sgd":
-        return SGD(model.parameters(), lr=args.get('lr', 1e-2), momentum=args.get('momentum', 0.9))
-    elif optimizer == "adam":
-        _betas = (0.9, 0.999) if "betas" not in args.keys() else args["betas"]
-        return Adam(model.parameters(), lr=args.get('lr', 1e-3), betas=_betas)
-    raise NotImplementedError
-
-
-class EmnistCNN(nn.Module):
-    def __init__(self):
-        super(EmnistCNN, self).__init__()
-        self.net = nn.Sequential(
-            nn.Conv2d(in_channels=1, out_channels=32, kernel_size=5, padding=2),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, stride=2, padding=0),
-            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=5, padding=2),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, stride=2, padding=0),
-            nn.Flatten(),
-            nn.Linear(7 * 7 * 64, out_features=1024),
-            nn.ReLU(inplace=True),
-            nn.Dropout(0.6),
-            nn.Linear(in_features=1024, out_features=62),
-        )
-
-    def forward(self, x):
-        return self.net(x)
+from utils import get_args, AverageMeter, get_optimizer, get_logger
+from model import EmnistCNN
 
 class LocalTrainer:
     def __init__(self, optimizer_type, optimizer_args, criterion,
@@ -62,7 +28,7 @@ class LocalTrainer:
 
         freezed_model = deepcopy(model)
         optimizer = get_optimizer(model, self.optimizer_type, self.optimizer_args)
-        self._train(client_id, model, trainloader, optimizer, self.epochs)
+        self._train(model, trainloader, optimizer, self.epochs)
 
         gradients = []
         for old_param, new_param in zip(freezed_model.parameters(), model.parameters()):
@@ -71,9 +37,8 @@ class LocalTrainer:
         weight = torch.tensor(len(trainloader.sampler))
         return weight, gradients
 
-    def _train(self, client_id, model, dataloader, optimizer, epochs):
+    def _train(self, model, dataloader, optimizer, epochs):
         model.train()
-        # for _ in trange(epochs, desc="client [{}]".format(client_id)):
         for _ in range(epochs):
             for x, y in dataloader:
                 if self.cuda != -1:
@@ -112,25 +77,12 @@ class LocalTrainer:
 
         return loss.average(), acc.average()
 
-def init_logging():
-    logging.basicConfig(level=logging.INFO,
-                        format='%(asctime)s  %(message)s',
-                        datefmt='[%m-%d %H:%M:%S]',
-                        filename='./log.txt',
-                        filemode='w')
-    console = logging.StreamHandler()
-    console.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(asctime)s  %(message)s', datefmt='[%m-%d %H:%M:%S]')
-    console.setFormatter(formatter)
-    logging.getLogger().addHandler(console)
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     args = get_args(parser)
 
-    init_logging()
+    logger = get_logger(filename='./log.txt', enable_console=True)
 
-    # logger = Logger(log_name="Personalized FedAvg")
     if args.cuda == -1:
         device = torch.device("cpu")
     else:
@@ -189,4 +141,4 @@ if __name__ == "__main__":
 
         if e % 20 == 0:
             loss, acc = trainer.evaluate(deepcopy(global_model), test_clients)
-            logging.info("{0:.5f}, {1:.5f}".format(loss, acc))
+            logging.info("epoch {0}: {1:.5f}, {2:.5f}".format(e, loss, acc))

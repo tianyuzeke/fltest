@@ -1,3 +1,31 @@
+from torch.optim import Adam, SGD
+import logging
+
+def get_logger(name='default', filename='./log.txt', enable_console=True):
+    logging.basicConfig(level=logging.INFO,
+                        format='%(asctime)s  %(message)s',
+                        datefmt='[%m-%d %H:%M:%S]',
+                        filename=filename,
+                        filemode='w')
+    if enable_console:
+        console = logging.StreamHandler()
+        console.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(asctime)s  %(message)s', datefmt='[%m-%d %H:%M:%S]')
+        console.setFormatter(formatter)
+        logging.getLogger().addHandler(console)
+    return logging.getLogger(name)
+
+def get_optimizer(model, optimizer, args=None):
+    if args is None:
+        args = {}
+    if optimizer == "sgd":
+        return SGD(model.parameters(), lr=args.get('lr', 2e-2))
+    elif optimizer == "momentum_sgd":
+        return SGD(model.parameters(), lr=args.get('lr', 1e-2), momentum=args.get('momentum', 0.9))
+    elif optimizer == "adam":
+        _betas = (0.9, 0.999) if "betas" not in args.keys() else args["betas"]
+        return Adam(model.parameters(), lr=args.get('lr', 1e-3), betas=_betas)
+    raise NotImplementedError
 
 class AverageMeter:
     """Record metrics information"""
