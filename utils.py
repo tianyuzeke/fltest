@@ -43,6 +43,7 @@ class AverageMeter:
     def average(self):
         return self.sum / self.count
 
+
 def get_args(parser):
     parser.add_argument(
         "--client_num_in_total", type=int, default=3597, help="total num of clients",

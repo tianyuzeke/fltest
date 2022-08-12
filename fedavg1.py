@@ -11,27 +11,26 @@ from model import EmnistCNN
 
 class LocalTrainer:
     def __init__(self, optimizer_type, optimizer_args, criterion,
-            epochs, batch_size, pers_round, cuda) -> None:
+            epochs, batch_size, pers_round, device) -> None:
         self.dataset = PickleDataset("femnist", pickle_root='../leaf/pickle_datasets')
         self.optimizer_type = optimizer_type
         self.optimizer_args = optimizer_args
         self.criterion = criterion
         self.epochs = epochs
-        self.pers_round = pers_round
         self.batch_size = batch_size
-        self.cuda = cuda
+        self.device = device
     
     def train(self, model, client_id):
         trainloader = DataLoader(
             self.dataset.get_dataset_pickle("train", client_id), self.batch_size
         )
 
-        freezed_model = deepcopy(model)
+        initial_params = deepcopy(list(model.parameters()))
         optimizer = get_optimizer(model, self.optimizer_type, self.optimizer_args)
         self._train(model, trainloader, optimizer, self.epochs)
 
         gradients = []
-        for old_param, new_param in zip(freezed_model.parameters(), model.parameters()):
+        for old_param, new_param in zip(initial_params, model.parameters()):
             gradients.append(old_param.data - new_param.data)
         
         weight = torch.tensor(len(trainloader.sampler))
@@ -41,8 +40,8 @@ class LocalTrainer:
         model.train()
         for _ in range(epochs):
             for x, y in dataloader:
-                if self.cuda != -1:
-                    x, y = x.cuda(self.cuda), y.cuda(self.cuda)
+                x = x.to(device=self.device)
+                y = y.to(device=self.device)
 
                 outputs = model(x)
                 loss = self.criterion(outputs, y)
@@ -64,9 +63,8 @@ class LocalTrainer:
                     self.dataset.get_dataset_pickle("test", client), self.batch_size
                 )
                 for inputs, labels in testloader:
-                    if self.cuda != -1:
-                        inputs = inputs.cuda(self.cuda)
-                        labels = labels.cuda(self.cuda)
+                    inputs = inputs.to(device=self.device)
+                    labels = labels.to(device=self.device)
 
                     outputs = model(inputs)
                     l = criterion(outputs, labels)
@@ -80,8 +78,10 @@ class LocalTrainer:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     args = get_args(parser)
-
     logger = get_logger(filename='./log.txt', enable_console=True)
+
+    random.seed(0)
+    torch.manual_seed(0)
 
     if args.cuda == -1:
         device = torch.device("cpu")
@@ -107,10 +107,9 @@ if __name__ == "__main__":
         epochs=args.inner_loops,
         batch_size=args.batch_size,
         pers_round=args.pers_round,
-        cuda=args.cuda
+        device=device
     )
-    
-    random.seed(0)
+
     test_clients = random.sample(test_clients_id_list, 40)
 
     # FedAvg training
@@ -134,7 +133,7 @@ if __name__ == "__main__":
             for param, grad in zip(global_model.parameters(), grads):
                 if param.grad is None:
                     param.grad = torch.zeros(
-                        param.size(), requires_grad=True, device=param.device
+                        param.size(), requires_grad=True, device=device
                     )
                 param.grad.data.add_(grad.data * weight)
         global_optimizer.step()
