@@ -13,13 +13,12 @@ from fedavg1 import LocalTrainer
 
 class LocalFineTuner:
     def __init__(self, optimizer_type, optimizer_args, criterion,
-            epochs, batch_size, pers_round, device) -> None:
+            epochs, batch_size, device) -> None:
         self.dataset = PickleDataset("femnist", pickle_root='../leaf/pickle_datasets')
         self.optimizer_type = optimizer_type
         self.optimizer_args = optimizer_args
         self.criterion = criterion
         self.epochs = epochs
-        # self.pers_round = pers_round
         self.batch_size = batch_size
         self.device = device
     
@@ -56,7 +55,7 @@ class LocalFineTuner:
 
 class PerLocalTrainer(LocalTrainer):
     def __init__(self, optimizer_type, optimizer_args, criterion,
-            epochs, batch_size, pers_round, cuda) -> None:
+            epochs, batch_size, pers_round, device) -> None:
         super().__init__(optimizer_type, optimizer_args, criterion,
             epochs, batch_size, pers_round, device)
         self.pers_round = pers_round
@@ -64,7 +63,7 @@ class PerLocalTrainer(LocalTrainer):
     def per_evaluate(self, model, test_clients):
         init_acc, per_acc = AverageMeter(), AverageMeter()
         for client in test_clients:
-            acc1, acc2, n = self._per_eval(deepcopy(model), client)
+            acc1, acc2 = self._per_eval(deepcopy(model), client)
             print('per_eval:', acc1.average(), acc2.average())
             init_acc.update(acc1.sum, acc1.count)
             per_acc.update(acc2.sum, acc2.count)
@@ -177,7 +176,8 @@ if __name__ == "__main__":
             logging.info("epoch {0}: {1:.5f}, {2:.5f}".format(e, loss, acc))
 
     # eval
-    init_acc, per_acc = trainer.per_evaluate(global_model, test_clients)
+    test_clients_large = random.sample(test_clients_id_list, 400)
+    init_acc, per_acc = trainer.per_evaluate(global_model, test_clients_large)
     logging.info("init_acc: {0:.5f}, per_acc: {1:.5f}".format(init_acc, per_acc))
 
     # Fine-tune
@@ -191,7 +191,7 @@ if __name__ == "__main__":
         criterion=criterion,
         epochs=args.fine_tune_inner_loops,
         batch_size=args.batch_size,
-        device=args.device,
+        device=device,
     )
 
     for e in range(args.fine_tune_outer_loops):
@@ -218,5 +218,6 @@ if __name__ == "__main__":
         server_optimizer.step()
     logger.info("Fine-tune end")
 
-    init_acc, per_acc = trainer.per_evaluate(global_model, test_clients)
+    # final eval
+    init_acc, per_acc = trainer.per_evaluate(global_model, test_clients_large)
     logging.info("init_acc: {0:.5f}, per_acc: {1:.5f}".format(init_acc, per_acc))

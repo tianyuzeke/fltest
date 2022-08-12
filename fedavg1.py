@@ -67,7 +67,7 @@ class LocalTrainer:
                     labels = labels.to(device=self.device)
 
                     outputs = model(inputs)
-                    l = criterion(outputs, labels)
+                    l = self.criterion(outputs, labels)
 
                     _, predicted = torch.max(outputs, 1)
                     loss.update(l.item(), len(labels))
