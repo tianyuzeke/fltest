@@ -177,7 +177,7 @@ if __name__ == "__main__":
 
     # eval
     test_clients_large = random.sample(test_clients_id_list, 400)
-    init_acc, per_acc = trainer.per_evaluate(global_model, test_clients_large)
+    init_acc, per_acc = trainer.per_evaluate(deepcopy(global_model), test_clients_large)
     logging.info("init_acc: {0:.5f}, per_acc: {1:.5f}".format(init_acc, per_acc))
 
     # Fine-tune
