@@ -1,5 +1,6 @@
 from torch.optim import Adam, SGD
 import logging
+import argparse
 
 def get_logger(name='default', filename='./log.txt', enable_console=True):
     logging.basicConfig(level=logging.INFO,
@@ -43,6 +44,15 @@ class AverageMeter:
     def average(self):
         return self.sum / self.count
 
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 def get_args(parser):
     parser.add_argument(
@@ -78,7 +88,7 @@ def get_args(parser):
     )
     parser.add_argument(
         "--fine_tune",
-        type=bool,
+        type=str2bool,
         default=True,
         help="determine whether perform fine-tune",
     )
