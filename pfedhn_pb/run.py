@@ -1,19 +1,21 @@
 import argparse
 import torch
-import logging
+# import logging
 from collections import OrderedDict, defaultdict
 import numpy as np
 import torch.utils.data
 from tqdm import trange
 from pathlib import Path
 import sys, random, os, json
-from _utils import get_args
-from models import CNNHyper, CNNTarget
-from dataset import gen_random_loaders
+
+from models1 import CNNHyper, CNNTarget, LocalLayer
+# from models2 import CNNHyper, CNNTarget, LocalLayer
 
 sys.path.append('..')
 
 from utils import get_logger
+from pfedhn._utils import get_args
+from pfedhn.dataset import gen_random_loaders
 
 class LocalTrainer:
     def __init__(self, args, net, device):
@@ -24,9 +26,18 @@ class LocalTrainer:
         self.args = args
         self.net = net
         self.criteria = torch.nn.CrossEntropyLoss()
+        
+        # local layer
+        self.local_layers = [LocalLayer().to(device) for _ in range(args.num_nodes)]
+        # self.ll_optim = torch.optim.SGD
+        self.ll_optim_config = dict(lr=self.args.inner_lr, momentum=.9, weight_decay=self.args.inner_wd)
+
+        self.local_optimizers = [
+            torch.optim.SGD(self.local_layers[i].parameters(), lr=self.args.inner_lr, momentum=.9, weight_decay=self.args.inner_wd)
+                 for i in range(args.num_nodes)]
 
     def __len__(self):
-        return self.n_nodes
+        return self.args.num_nodes
 
     def train(self, weights, client_id):
         self.net.load_state_dict(weights)
@@ -38,16 +49,19 @@ class LocalTrainer:
         for i in range(self.args.inner_steps):
             
             batch = next(iter(self.train_loaders[client_id]))
-            img, label = tuple(t.to(self.device) for t in batch)
+            x, y = tuple(t.to(self.device) for t in batch)
 
-            pred = self.net(img)
-            loss = self.criteria(pred, label)
+            ll_out = self.local_layers[client_id](x)
+            pred = self.net(ll_out)
+            loss = self.criteria(pred, y)
 
             optimizer.zero_grad()
+            self.local_optimizers[client_id].zero_grad()
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(net.parameters(), 50)
 
+            torch.nn.utils.clip_grad_norm_(net.parameters(), 50)
             optimizer.step()
+            self.local_optimizers[client_id].step()
 
         final_state = self.net.state_dict()
 
@@ -69,7 +83,7 @@ class LocalTrainer:
             x = x.to(self.device)
             y = y.to(self.device)
             
-            pred = self.net(x)
+            pred = self.net(self.local_layers[client_id](x))
             running_loss += self.criteria(pred, y).item()
             running_correct += pred.argmax(1).eq(y).sum().item()
             running_samples += len(y)
