@@ -57,7 +57,7 @@ class CNNTarget(nn.Module):
         super(CNNTarget, self).__init__()
 
         # self.conv1 = nn.Conv2d(in_channels, n_kernels, 5)
-        self.pool = nn.MaxPool2d(2, 2)
+        # self.pool = nn.MaxPool2d(2, 2)
         # self.conv2 = nn.Conv2d(n_kernels, 2 * n_kernels, 5)
         self.fc1 = nn.Linear(2 * n_kernels * 5 * 5, 120)
         self.fc2 = nn.Linear(120, 84)
@@ -70,4 +70,17 @@ class CNNTarget(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
+        return x
+
+class LocalLayer(nn.Module):
+
+    def __init__(self, in_channels=3, n_kernels=16):
+        super().__init__()
+        self.conv1 = nn.Conv2d(in_channels, n_kernels, 5)
+        self.conv2 = nn.Conv2d(n_kernels, 2 * n_kernels, 5)
+        self.pool = nn.MaxPool2d(2, 2)
+
+    def forward(self, x):
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
         return x

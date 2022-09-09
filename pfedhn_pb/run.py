@@ -8,8 +8,8 @@ from tqdm import trange
 from pathlib import Path
 import sys, random, os, json
 
-from models1 import CNNHyper, CNNTarget, LocalLayer
-# from models2 import CNNHyper, CNNTarget, LocalLayer
+# from models1 import CNNHyper, CNNTarget, LocalLayer
+from models2 import CNNHyper, CNNTarget, LocalLayer
 
 sys.path.append('..')
 
