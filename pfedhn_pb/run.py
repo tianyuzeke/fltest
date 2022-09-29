@@ -39,7 +39,7 @@ class LocalTrainer:
     def __len__(self):
         return self.args.num_nodes
 
-    def train(self, weights, client_id):
+    def train(self, weights, client_id, emd):
         self.net.load_state_dict(weights)
         self.net.train()
         inner_state = OrderedDict({k: t.data for k, t in weights.items()})
@@ -52,7 +52,7 @@ class LocalTrainer:
             x, y = tuple(t.to(self.device) for t in batch)
 
             ll_out = self.local_layers[client_id](x)
-            pred = self.net(ll_out)
+            pred = self.net(ll_out, emd)
             loss = self.criteria(pred, y)
 
             optimizer.zero_grad()
@@ -68,7 +68,7 @@ class LocalTrainer:
         return OrderedDict({k: inner_state[k] - final_state[k] for k in weights.keys()})
     
     @torch.no_grad()
-    def evalute(self, weights, client_id, split):
+    def evalute(self, weights, client_id, split, emd):
         running_loss, running_correct, running_samples = 0., 0., 0.
         if split == 'test':
             eval_data = trainer.test_loaders[client_id]
@@ -83,7 +83,7 @@ class LocalTrainer:
             x = x.to(self.device)
             y = y.to(self.device)
             
-            pred = self.net(self.local_layers[client_id](x))
+            pred = self.net(self.local_layers[client_id](x), emd)
             running_loss += self.criteria(pred, y).item()
             running_correct += pred.argmax(1).eq(y).sum().item()
             running_samples += len(y)
@@ -94,8 +94,8 @@ def evaluate(hnet, trainer, clients, split):
     hnet.eval()
 
     for client_id in clients:     
-        weights = hnet(torch.tensor([client_id], dtype=torch.long).to(device))
-        running_loss, running_correct, running_samples = trainer.evalute(weights, client_id, split)
+        weights, emd = hnet(torch.tensor([client_id], dtype=torch.long).to(device))
+        running_loss, running_correct, running_samples = trainer.evalute(weights, client_id, split, emd)
 
         results[client_id]['loss'] = running_loss
         results[client_id]['correct'] = running_correct
@@ -136,12 +136,12 @@ if __name__ == "__main__":
 
     if args.data_name == "cifar10":
         hnet = CNNHyper(args.num_nodes, embed_dim, hidden_dim=args.hyper_hid, 
-            n_hidden=args.n_hidden, n_kernels=args.n_kernels)
-        net = CNNTarget(n_kernels=args.n_kernels)
+            n_hidden=args.n_hidden, n_kernels=args.n_kernels, vdim=embed_dim)
+        net = CNNTarget(n_kernels=args.n_kernels, vdim=embed_dim)
     elif args.data_name == "cifar100":
         hnet = CNNHyper(args.num_nodes, embed_dim, hidden_dim=args.hyper_hid,
-                        n_hidden=args.n_hidden, n_kernels=args.n_kernels, out_dim=100)
-        net = CNNTarget(n_kernels=args.n_kernels, out_dim=100)
+                        n_hidden=args.n_hidden, n_kernels=args.n_kernels, out_dim=100, vdim=embed_dim)
+        net = CNNTarget(n_kernels=args.n_kernels, out_dim=100, vdim=embed_dim)
     else:
         raise ValueError("choose data_name from ['cifar10', 'cifar100']")
 
@@ -185,10 +185,12 @@ if __name__ == "__main__":
             client_id = random.choice(range(args.num_nodes))
 
             # produce & load local network weights
-            weights = hnet(torch.tensor([client_id], dtype=torch.long).to(device))
+            weights, emd = hnet(torch.tensor([client_id], dtype=torch.long).to(device))
+            # emd.to(device)
+
             net.load_state_dict(weights)
 
-            delta = trainer.train(weights, client_id)
+            delta = trainer.train(weights, client_id, emd)
 
             final_state = net.state_dict()
 
