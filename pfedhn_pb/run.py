@@ -95,6 +95,8 @@ def evaluate(hnet, trainer, clients, split):
 
     for client_id in clients:     
         weights, emd = hnet(torch.tensor([client_id], dtype=torch.long).to(device))
+        # emd = att_fn()
+
         running_loss, running_correct, running_samples = trainer.evalute(weights, client_id, split, emd)
 
         results[client_id]['loss'] = running_loss
@@ -186,7 +188,6 @@ if __name__ == "__main__":
 
             # produce & load local network weights
             weights, emd = hnet(torch.tensor([client_id], dtype=torch.long).to(device))
-            # emd.to(device)
 
             net.load_state_dict(weights)
 
