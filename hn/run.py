@@ -71,7 +71,7 @@ class LocalTrainer:
             
             pred = self.net(x)
             running_loss += self.criteria(pred, y).item()
-            # print(pred, running_loss)
+            # print(running_loss)
             running_correct += pred.argmax(1).eq(y).sum().item()
             running_samples += len(y)
         return running_loss/(len(eval_data) + 1), running_correct, running_samples
@@ -117,18 +117,16 @@ if __name__ == "__main__":
         args.classes_per_node = 10
 
     embed_dim = args.embed_dim
-    n_embeddings = 20
-    embed_dim = 600
 
-    if embed_dim == -1:
-        # logging.info("auto embedding size")
-        embed_dim = int(1 + args.num_nodes / 4)
+    # if embed_dim == -1:
+    #     # logging.info("auto embedding size")
+    #     embed_dim = int(1 + args.num_nodes / 4)
 
     if args.data_name == "cifar10":
-        hnet = CNNHyper(args.num_nodes, n_embeddings, embed_dim, n_kernels=args.n_kernels)
+        hnet = CNNHyper(args.num_nodes, args.n_embeds, args.embed_dim, n_kernels=args.n_kernels, norm_var=args.norm_var)
         net = CNNTarget(n_kernels=args.n_kernels)
     elif args.data_name == "cifar100":
-        hnet = CNNHyper(args.num_nodes, n_embeddings, embed_dim, n_kernels=args.n_kernels, out_dim=100)
+        hnet = CNNHyper(args.num_nodes, args.n_embeds, args.embed_dim, n_kernels=args.n_kernels, out_dim=100, norm_var=args.norm_var)
         net = CNNTarget(n_kernels=args.n_kernels, out_dim=100)
     else:
         raise ValueError("choose data_name from ['cifar10', 'cifar100']")
@@ -202,7 +200,7 @@ if __name__ == "__main__":
         for p, g in zip(hnet.parameters(), hnet_grads):
             p.grad = g
 
-        torch.nn.utils.clip_grad_norm_(hnet.parameters(), 50)
+        torch.nn.utils.clip_grad_norm_(hnet.parameters(), args.grad_clip)
         optimizer.step()
 
         # A = ((embd - hnet.embeddings.weight)**2).view(-1).sum()
@@ -268,7 +266,8 @@ if __name__ == "__main__":
     save_path.mkdir(parents=True, exist_ok=True)
     if args.suffix:
         suffix = '_' + args.suffix
-    with open(str(save_path / f"results_cr_{args.clients_per_round}_ins_{args.inner_steps}_es_{embed_dim}{args.suffix}.json"), "w") as file:
+    filename = f"results_cr_{args.clients_per_round}_ins_{args.inner_steps}_ne_{args.n_embeds}_ed_{args.embed_dim}_nv_{args.norm_var}_gc_{args.grad_clip}{args.suffix}.json"
+    with open(str(save_path / filename), "w") as file:
         json.dump(results, file, indent=4)
 
 

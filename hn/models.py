@@ -8,14 +8,14 @@ from torch.nn.utils import spectral_norm
 
 class CNNHyper(nn.Module):
     def __init__(
-            self, n_nodes, n_embeddings, embedding_dim, in_channels=3, out_dim=10, n_kernels=16):
+            self, n_nodes, n_embeds, embedding_dim, in_channels=3, out_dim=10, n_kernels=16, norm_var=0.01):
         super().__init__()
 
         self.in_channels = in_channels
         self.out_dim = out_dim
         self.n_kernels = n_kernels
-        self.embeddings = nn.Embedding(num_embeddings=n_embeddings, embedding_dim=embedding_dim)
-        # self.embeddings = nn.Parameter(torch.randn((n_embeddings, embedding_dim)))
+        self.embeddings = nn.Embedding(num_embeddings=n_embeds, embedding_dim=embedding_dim)
+        # self.embeddings = nn.Parameter(torch.randn((n_embeds, embedding_dim)))
 
         num_params = 10
 
@@ -30,8 +30,8 @@ class CNNHyper(nn.Module):
         self.l3_weights = nn.Linear(embedding_dim, self.out_dim * 84)
         self.l3_bias = nn.Linear(embedding_dim, self.out_dim)
 
-        # self.coeff = nn.ParameterList([nn.Embedding(num_params, n_embeddings) for i in range(n_nodes)])
-        self.coeff = nn.ParameterList([nn.Parameter(torch.normal(0, 0.1, (num_params, n_embeddings))) \
+        # self.coeff = nn.ParameterList([nn.Embedding(num_params, n_embeds) for i in range(n_nodes)])
+        self.coeff = nn.ParameterList([nn.Parameter(torch.normal(0, norm_var, (num_params, n_embeds))) \
             for i in range(n_nodes)])
 
     def forward(self, idx):
